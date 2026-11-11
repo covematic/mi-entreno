@@ -1,0 +1,14 @@
+{
+  "name": "Mi Entreno",
+  "short_name": "Mi Entreno",
+  "description": "Registra tus entrenamientos, rutinas y progreso.",
+  "lang": "es",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1116",
+  "theme_color": "#0e1116",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
