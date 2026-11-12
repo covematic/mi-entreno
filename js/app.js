@@ -300,7 +300,7 @@ const chips = (list, cur, action) => `<div class="chips">${['Todos', ...list].ma
 const filterEx = (g, q) => EXERCISES.filter(e => (g === 'Todos' || e.g === g) && e.n.toLowerCase().includes(q.trim().toLowerCase()));
 const exTiles = (g, q) => filterEx(g, q).map(e => `<button class="tile" data-a="ex-info" data-id="${e.id}"><span class="pic"><img loading="lazy" src="${imgUrl(e.id)}" alt=""></span><b>${esc(e.n)}</b><span>${e.g}</span></button>`).join('') || '<p class="muted" style="grid-column:1/-1;text-align:center">Sin resultados</p>';
 const pickList = (g, q) => filterEx(g, q).map(e => `<button class="pickrow" data-a="pick-ex" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${e.g}</span></span>${ic('plus')}</button>`).join('') || '<p class="muted" style="text-align:center">Sin resultados</p>';
-const searchBox = (key, val = '') => `<div class="search">${ic('search')}<input type="search" data-i="${key}" value="${esc(val)}" placeholder="Buscar" aria-label="Buscar ejercicio"></div>`;
+const searchBox = (key, val = '') => `<div class="search">${ic('search')}<input type="search" enterkeyhint="search" autocapitalize="none" autocorrect="off" data-i="${key}" value="${esc(val)}" placeholder="Buscar" aria-label="Buscar ejercicio"></div>`;
 
 function vEjercicios() {
   return `<h1>Ejercicios</h1>${searchBox('exq', ui.exQ)}${chips(GROUPS, ui.exG, 'ex-group')}
