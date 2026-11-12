@@ -137,8 +137,8 @@ function lineChart(pts, unit = '') {
   const labels = xl.map(i => `<text x="${x(i)}" y="${H - 8}" text-anchor="${i === 0 && pts.length > 1 ? 'start' : i === pts.length - 1 && pts.length > 1 ? 'end' : 'middle'}">${esc(pts[i].x)}</text>`).join('');
   const dots = pts.map((p, i) => `<g><circle class="hit" cx="${x(i)}" cy="${y(p.y)}" r="12"><title>${esc(p.x)}: ${fmt(p.y)} ${unit}</title></circle><circle class="pt" cx="${x(i)}" cy="${y(p.y)}" r="${pts.length > 30 ? 2.5 : 4}" pointer-events="none"/></g>`).join('');
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfica de evolución">
-    <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c6f432" stop-opacity=".28"/><stop offset="1" stop-color="#c6f432" stop-opacity="0"/></linearGradient></defs>
-    ${grid}${pts.length > 1 ? `<path d="${area}" fill="url(#ga)"/><path class="ln" d="${path}"/>` : ''}${dots}${labels}</svg>`;
+    <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent)" stop-opacity=".28"/><stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/></linearGradient></defs>
+    ${grid}${pts.length > 1 ? `<path d="${area}" fill="url(#ga)"/><path class="ln" pathLength="1" d="${path}"/>` : ''}${dots}${labels}</svg>`;
 }
 const delta = (cur, prev, unit = '') => {
   if (prev == null) return '<span class="muted">—</span>';
@@ -416,9 +416,12 @@ function render() {
   if (!p) { document.getElementById('nav').innerHTML = ''; view.innerHTML = vOnboarding(); return; }
   const [route, arg] = (location.hash.slice(1) || 'inicio').split('/');
   const cur = route === 'rutina' ? 'rutinas' : route === 'entrenar' ? 'inicio' : route;
-  document.getElementById('nav').innerHTML = NAV.map(([h, icon, l]) => `<a href="#${h}" class="${cur === h ? 'on' : ''}" aria-label="${l}" title="${l}" ${cur === h ? 'aria-current="page"' : ''}>${ic(icon, 26)}</a>`).join('');
+  document.getElementById('nav').innerHTML = NAV.map(([h, icon, l]) => `<a href="#${h}" class="${cur === h ? 'on' : ''}" aria-label="${l}" title="${l}" ${cur === h ? 'aria-current="page"' : ''}>${ic(icon, 23)}</a>`).join('');
   const views = { inicio: vInicio, rutinas: vRutinas, rutina: () => vRutina(arg), entrenar: vEntrenar, ejercicios: vEjercicios, progreso: vProgreso, nutricion: vNutricion, perfil: vPerfil };
   view.innerHTML = (views[route] ?? vInicio)();
+  // Animación de entrada solo al cambiar de pantalla
+  view.classList.remove('enter');
+  if (render.last !== location.hash) { render.last = location.hash; void view.offsetWidth; view.classList.add('enter'); }
   tick();
 }
 function tick() {
@@ -505,6 +508,7 @@ const actions = {
       if (!(num(s.reps) > 0)) return toast('Faltan las reps');
     }
     s.done = !s.done; save(); render();
+    if (s.done) document.querySelector(`[data-a="set-done"][data-x="${el.dataset.x}"][data-s="${el.dataset.s}"]`)?.classList.add('pop');
   },
   'set-add': el => { const it = D().active.items[+el.dataset.x], l = it.sets.at(-1); it.sets.push({ peso: l?.peso ?? '', reps: '', done: false }); save(); render(); },
   'set-del': el => { D().active.items[+el.dataset.x].sets.splice(+el.dataset.s, 1); save(); render(); },
