@@ -33,10 +33,28 @@ const go = h => {
   render(); window.scrollTo(0, 0);
 };
 
-const EX = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
-const exName = id => EX[id]?.n ?? 'Ejercicio eliminado';
-const imgUrl = (id, i = 0) => `${IMG_BASE}/${EX[id]?.img}/${i}.jpg`;
-const thumb = id => `<span class="thumb"><img loading="lazy" src="${imgUrl(id)}" alt=""></span>`;
+const BASE = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
+// Ejercicios personalizables: cada perfil guarda sus cambios en D().ex = { id: { n, g, eq, tip, photo, hidden, custom } }
+const exOver = () => (S.active && D() ? (D().ex ??= {}) : {});
+const getEx = id => { const o = exOver()[id]; return BASE[id] ? { ...BASE[id], ...o } : o?.custom ? { id, ...o } : null; };
+const exAll = () => { const o = exOver(); return [...EXERCISES.map(e => ({ ...e, ...o[e.id] })), ...Object.keys(o).filter(id => o[id].custom).map(id => ({ id, ...o[id] }))]; };
+const groupsAll = () => [...new Set([...GROUPS, ...exAll().filter(e => !e.hidden).map(e => e.g)])];
+const exName = id => getEx(id)?.n ?? 'Ejercicio eliminado';
+const stockUrl = (e, i = 0) => (e?.img ? `${IMG_BASE}/${e.img}/${i}.jpg` : '');
+const imgUrl = (id, i = 0) => { const e = getEx(id); return e?.photo || stockUrl(e, i); };
+const pic = (id, alt = '') => { const u = imgUrl(id); return u ? `<img loading="lazy" src="${u}" alt="${esc(alt)}">` : ic('dumbbell', 20); };
+const thumb = id => `<span class="thumb">${pic(id)}</span>`;
+// Reduce la foto elegida para que quepa en el almacenamiento del navegador
+const shrinkPhoto = file => new Promise((res, rej) => {
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const k = Math.min(1, 640 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.72));
+  };
+  img.onerror = rej; img.src = url;
+});
 
 // Si una imagen no carga, se muestra un icono en su lugar
 document.addEventListener('error', e => {
@@ -80,7 +98,7 @@ function createDemo() {
       d.workouts.push({
         id: uid(), fecha: date.toISOString(), nombre: r.nombre, routineId: r.id, min: 50 + Math.round(Math.random() * 25),
         items: r.items.map(it => {
-          const base = EX[it.exId].b * (1 + wk * 0.025);
+          const base = BASE[it.exId].b * (1 + wk * 0.025);
           const w = Math.round((base * (0.97 + Math.random() * 0.06)) / 2.5) * 2.5;
           const reps = parseInt(it.reps) || 8;
           return { exId: it.exId, sets: Array.from({ length: it.series }, (_, i) => ({ peso: w, reps: Math.max(3, reps + (i === 0 ? 1 : 0) - (i === it.series - 1 ? 1 : 0)) })) };
@@ -156,6 +174,7 @@ const ICONS = {
   food: '<path d="M7 3v18M4 3v5a3 3 0 0 0 6 0V3M17 21V3c-2 2-3 5-3 9h3"/>',
   play: '<path d="M8 5v14l11-7z" fill="currentColor"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
@@ -206,7 +225,7 @@ function vOnboarding() {
     <div style="text-align:center"><button class="chip" data-a="demo">${ic('spark', 18)}Ver demo</button></div>`;
 }
 
-const thumbs = (items, n = 6) => `<div class="thumbs">${items.slice(0, n).map(i => `<span class="thumb sm"><img loading="lazy" src="${imgUrl(i.exId)}" alt="${esc(exName(i.exId))}"></span>`).join('')}${items.length > n ? `<span class="small muted" style="align-self:center">+${items.length - n}</span>` : ''}</div>`;
+const thumbs = (items, n = 6) => `<div class="thumbs">${items.slice(0, n).map(i => `<span class="thumb sm">${pic(i.exId, exName(i.exId))}</span>`).join('')}${items.length > n ? `<span class="small muted" style="align-self:center">+${items.length - n}</span>` : ''}</div>`;
 
 function workoutCard(w, withDelete) {
   return `<details class="card">
@@ -276,7 +295,7 @@ function vEntrenar() {
     <div style="margin-top:14px">${a.items.map((it, xi) => {
       const last = lastSets(it.exId);
       return `<div class="card">
-        <div class="row"><button class="thumb" data-a="ex-info" data-id="${it.exId}" aria-label="Ver ejercicio"><img loading="lazy" src="${imgUrl(it.exId)}" alt=""></button>
+        <div class="row"><button class="thumb" data-a="ex-info" data-id="${it.exId}" aria-label="Ver ejercicio">${pic(it.exId)}</button>
           <div class="grow"><b>${esc(exName(it.exId))}</b>
             <div class="small muted ellip">${last ? ic('history', 13) + ' ' + last.map(s => `${fmt(s.peso)}×${s.reps}`).join(' · ') : it.target ? esc(it.target) + ' reps' : ''}</div></div>
           ${ib('trash', 'Quitar ejercicio', `data-a="wo-del-ex" data-x="${xi}"`, 'ghost')}</div>
@@ -296,25 +315,52 @@ function vEntrenar() {
       <button type="button" class="ib txt primary wide big" data-a="wo-finish">${ic('flag')}Terminar</button></div>`;
 }
 
-const chips = (list, cur, action) => `<div class="chips">${['Todos', ...list].map(g => `<button class="chip ${g === cur ? 'on' : ''}" data-a="${action}" data-g="${g}">${g}</button>`).join('')}</div>`;
-const filterEx = (g, q) => EXERCISES.filter(e => (g === 'Todos' || e.g === g) && e.n.toLowerCase().includes(q.trim().toLowerCase()));
-const exTiles = (g, q) => filterEx(g, q).map(e => `<button class="tile" data-a="ex-info" data-id="${e.id}"><span class="pic"><img loading="lazy" src="${imgUrl(e.id)}" alt=""></span><b>${esc(e.n)}</b><span>${e.g}</span></button>`).join('') || '<p class="muted" style="grid-column:1/-1;text-align:center">Sin resultados</p>';
-const pickList = (g, q) => filterEx(g, q).map(e => `<button class="pickrow" data-a="pick-ex" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${e.g}</span></span>${ic('plus')}</button>`).join('') || '<p class="muted" style="text-align:center">Sin resultados</p>';
+const chips = (list, cur, action) => `<div class="chips">${['Todos', ...list].map(g => `<button class="chip ${g === cur ? 'on' : ''}" data-a="${action}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div>`;
+const filterEx = (g, q) => exAll().filter(e => !e.hidden && (g === 'Todos' || e.g === g) && e.n.toLowerCase().includes(q.trim().toLowerCase()));
+const exSub = e => esc(e.g) + (e.eq ? ' · ' + esc(e.eq) : '');
+const exTiles = (g, q) => filterEx(g, q).map(e => `<button class="pickrow" data-a="ex-info" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${exSub(e)}</span></span>${ic('next', 18)}</button>`).join('') || '<p class="muted" style="text-align:center;margin:14px 0">Sin resultados</p>';
+const pickList = (g, q) => filterEx(g, q).map(e => `<button class="pickrow" data-a="pick-ex" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${exSub(e)}</span></span>${ic('plus')}</button>`).join('') || '<p class="muted" style="text-align:center">Sin resultados</p>';
 const searchBox = (key, val = '') => `<div class="search">${ic('search')}<input type="search" enterkeyhint="search" autocapitalize="none" autocorrect="off" data-i="${key}" value="${esc(val)}" placeholder="Buscar" aria-label="Buscar ejercicio"></div>`;
 
 function vEjercicios() {
-  return `<h1>Ejercicios</h1>${searchBox('exq', ui.exQ)}${chips(GROUPS, ui.exG, 'ex-group')}
-    <div class="tiles" id="exgrid">${exTiles(ui.exG, ui.exQ)}</div>`;
+  const hid = exAll().filter(e => e.hidden).length;
+  if (ui.exG !== 'Todos' && !groupsAll().includes(ui.exG)) ui.exG = 'Todos';
+  return `<div class="between"><h1>Ejercicios</h1>${ib('plus', 'Crear ejercicio', 'data-a="ex-new"', 'primary')}</div>${searchBox('exq', ui.exQ)}${chips(groupsAll(), ui.exG, 'ex-group')}
+    <div class="card exlist" id="exgrid">${exTiles(ui.exG, ui.exQ)}</div>
+    ${hid ? `<button type="button" class="ib txt wide" style="width:100%" data-a="ex-restore">${ic('history')}Restaurar eliminados (${hid})</button>` : ''}`;
 }
 
 function exInfoModal(id) {
-  const e = EX[id]; if (!e) return;
+  const e = getEx(id); if (!e) return;
   const h = P() ? exHistory(id) : [];
-  openModal(`<div class="between"><h3>${esc(e.n)}</h3>${ib('x', 'Cerrar', 'data-a="close"', 'ghost')}</div>
-    <span class="tag">${e.g}</span> <span class="tag">${e.eq}</span>
-    <div class="eximgs"><div class="eximg"><img src="${imgUrl(id, 0)}" alt="Posición inicial"></div><div class="eximg"><img src="${imgUrl(id, 1)}" alt="Posición final"></div></div>
-    <div class="callout">${esc(e.tip)}</div>
-    ${h.length ? `<div class="row"><span class="grow row">${ic('trophy')}<b>${fmt(Math.max(...h.map(x => x.max)))} kg</b></span>${ib('chart', 'Ver mi progreso', `data-a="see-progress" data-id="${id}"`, 'primary')}</div>` : ''}`);
+  const imgs = e.photo ? `<div class="eximgs one"><div class="eximg"><img src="${e.photo}" alt=""></div></div>`
+    : e.img ? `<div class="eximgs"><div class="eximg"><img src="${stockUrl(e, 0)}" alt="Posición inicial"></div><div class="eximg"><img src="${stockUrl(e, 1)}" alt="Posición final"></div></div>` : '';
+  openModal(`<div class="between"><h3>${esc(e.n)}</h3><span class="row" style="gap:2px">${P() ? ib('edit', 'Editar ejercicio', `data-a="ex-edit" data-id="${id}"`, 'ghost') : ''}${ib('x', 'Cerrar', 'data-a="close"', 'ghost')}</span></div>
+    <span class="tag">${esc(e.g)}</span> ${e.eq ? `<span class="tag">${esc(e.eq)}</span>` : ''}
+    ${imgs}
+    ${e.tip ? `<div class="callout">${esc(e.tip)}</div>` : ''}
+    ${h.length ? `<div class="row" style="margin-top:12px"><span class="grow row">${ic('trophy')}<b>${fmt(Math.max(...h.map(x => x.max)))} kg</b></span>${ib('chart', 'Ver mi progreso', `data-a="see-progress" data-id="${id}"`, 'primary')}</div>` : ''}`);
+}
+
+// Vista previa de la foto en el editor: la elegida, o la de referencia si no hay
+const photoPrev = () => { const u = ui.exPhoto || stockUrl(ui.exEdit ? getEx(ui.exEdit) : null); return u ? `<img src="${u}" alt="">` : ic('dumbbell', 20); };
+function exEditModal(id) {
+  const e = id ? getEx(id) : null;
+  ui.exEdit = id || null; ui.exPhoto = e?.photo ?? null;
+  openModal(`<div class="between"><h3>${e ? 'Editar' : 'Nuevo'}</h3>${ib('x', 'Cerrar', 'data-a="close"', 'ghost')}</div>
+    <form data-form="ejercicio" data-id="${id ?? ''}" style="margin-top:10px">
+      <label>Nombre<input name="n" required maxlength="50" value="${esc(e?.n)}"></label>
+      <div class="grid g2">
+        <label>Grupo<input name="g" required maxlength="20" list="grupos" value="${esc(e?.g ?? (ui.exG !== 'Todos' ? ui.exG : ''))}"><datalist id="grupos">${groupsAll().map(g => `<option value="${esc(g)}">`).join('')}</datalist></label>
+        <label>Equipo<input name="eq" maxlength="20" value="${esc(e?.eq)}"></label>
+      </div>
+      <label>Notas<textarea name="tip" rows="3" maxlength="300">${esc(e?.tip)}</textarea></label>
+      <div class="row" style="margin-bottom:14px"><span class="thumb" id="exphoto">${photoPrev()}</span>
+        <label class="ib txt wide" style="margin:0">${ic('camera')}Foto<input type="file" accept="image/*" data-i="ex-photo" hidden></label>
+        ${ib('x', 'Quitar mi foto', 'data-a="ex-photo-del"', 'ghost')}</div>
+      <div class="row">${e ? ib('trash', 'Eliminar ejercicio', `data-a="ex-del" data-id="${id}"`, 'danger big') : ''}${e && BASE[id] && exOver()[id] ? ib('history', 'Restaurar original', `data-a="ex-reset" data-id="${id}"`, 'big') : ''}
+        <button class="ib txt primary wide big">${ic('check')}Guardar</button></div>
+    </form>`);
 }
 
 function vProgreso() {
@@ -322,7 +368,7 @@ function vProgreso() {
   const tabs = [['ejercicios', 'dumbbell', 'Por ejercicio'], ['cuerpo', 'scale', 'Peso corporal'], ['historial', 'history', 'Historial']];
   let body = '';
   if (ui.progTab === 'ejercicios') {
-    const done = EXERCISES.filter(e => d.workouts.some(w => w.items.some(i => i.exId === e.id)));
+    const done = exAll().filter(e => d.workouts.some(w => w.items.some(i => i.exId === e.id)));
     if (!done.length) body = empty('chart', 'Registra un entreno para ver tu progreso');
     else {
       if (!done.some(e => e.id === ui.progEx)) ui.progEx = done[0].id;
@@ -444,7 +490,7 @@ function startWorkout(id) {
   const begin = () => {
     d.active = {
       nombre: r ? r.nombre : 'Entreno libre', routineId: r?.id ?? null, inicio: Date.now(),
-      items: (r?.items ?? []).filter(it => EX[it.exId]).map(it => ({ exId: it.exId, target: it.reps, sets: Array.from({ length: Math.max(1, it.series) }, () => ({ peso: '', reps: '', done: false })) })),
+      items: (r?.items ?? []).filter(it => getEx(it.exId)).map(it => ({ exId: it.exId, target: it.reps, sets: Array.from({ length: Math.max(1, it.series) }, () => ({ peso: '', reps: '', done: false })) })),
     };
     save(); closeModal(); go('entrenar');
   };
@@ -472,7 +518,7 @@ function finishWorkout() {
 function openPicker(target) {
   ui.pick = target; ui.pickQ = ''; ui.pickG = 'Todos';
   openModal(`<div class="between"><h3>Añadir</h3>${ib('x', 'Cerrar', 'data-a="close"', 'ghost')}</div>
-    ${searchBox('pickq')}<div id="pickchips">${chips(GROUPS, 'Todos', 'pick-group')}</div>
+    ${searchBox('pickq')}<div id="pickchips">${chips(groupsAll(), 'Todos', 'pick-group')}</div>
     <div id="picklist">${pickList('Todos', '')}</div>`);
 }
 
@@ -488,7 +534,7 @@ const actions = {
   'rt-move': el => { const r = routeRoutine(), i = +el.dataset.x, j = i + +el.dataset.d; [r.items[i], r.items[j]] = [r.items[j], r.items[i]]; save(); render(); },
   'rt-del': el => { routeRoutine().items.splice(+el.dataset.x, 1); save(); render(); },
   pick: el => openPicker(el.dataset.target),
-  'pick-group': el => { ui.pickG = el.dataset.g; document.getElementById('pickchips').innerHTML = chips(GROUPS, ui.pickG, 'pick-group'); document.getElementById('picklist').innerHTML = pickList(ui.pickG, ui.pickQ); },
+  'pick-group': el => { ui.pickG = el.dataset.g; document.getElementById('pickchips').innerHTML = chips(groupsAll(), ui.pickG, 'pick-group'); document.getElementById('picklist').innerHTML = pickList(ui.pickG, ui.pickQ); },
   'pick-ex': el => {
     const id = el.dataset.id;
     if (ui.pick === 'routine') routeRoutine().items.push({ exId: id, series: 3, reps: '8-12' });
@@ -498,6 +544,12 @@ const actions = {
   metric: el => { ui.progMetric = el.dataset.m; render(); },
   'ex-group': el => { ui.exG = el.dataset.g; render(); },
   'ex-info': el => exInfoModal(el.dataset.id),
+  'ex-new': () => exEditModal(null),
+  'ex-edit': el => exEditModal(el.dataset.id),
+  'ex-photo-del': () => { ui.exPhoto = null; document.getElementById('exphoto').innerHTML = photoPrev(); },
+  'ex-del': el => ask('¿Eliminar ejercicio?', 'Eliminar', () => { const o = exOver(); o[el.dataset.id] = { ...o[el.dataset.id], hidden: true }; save(); render(); toast('Eliminado'); }),
+  'ex-reset': el => { delete exOver()[el.dataset.id]; save(); closeModal(); render(); toast('Restaurado'); },
+  'ex-restore': () => { Object.values(exOver()).forEach(o => delete o.hidden); save(); render(); toast('Restaurados'); },
   'see-progress': el => { ui.progTab = 'ejercicios'; ui.progEx = el.dataset.id; closeModal(); go('progreso'); },
   'set-done': el => {
     const it = D().active.items[+el.dataset.x], s = it.sets[+el.dataset.s];
@@ -549,6 +601,9 @@ document.addEventListener('change', e => {
   const el = e.target, k = el.dataset.i;
   if (k === 'prog-ex') { ui.progEx = el.value; render(); }
   else if (k === 'prog-metric') { ui.progMetric = el.value; render(); }
+  else if (k === 'ex-photo' && el.files[0]) {
+    shrinkPhoto(el.files[0]).then(u => { ui.exPhoto = u; document.getElementById('exphoto').innerHTML = photoPrev(); }).catch(() => toast('Foto no válida'));
+  }
   else if (k === 'import' && el.files[0]) {
     el.files[0].text().then(t => {
       const s = JSON.parse(t);
@@ -568,6 +623,14 @@ document.addEventListener('submit', e => {
     const fields = { nombre, edad: num(v.edad), altura: num(v.altura), objetivo: v.objetivo };
     if (f.dataset.id) { Object.assign(S.profiles.find(p => p.id === f.dataset.id), fields); ui.nutGoal = null; save(); render(); toast('Perfil guardado'); }
     else { newProfile({ ...fields, peso: num(v.peso) }); ui.progEx = null; ui.nutGoal = null; closeModal(); go('inicio'); toast(`¡Hola, ${nombre}!`); }
+  } else if (kind === 'ejercicio') {
+    const n = v.n.trim(), g = v.g.trim(); if (!n || !g) return;
+    const id = f.dataset.id || 'c_' + uid(), o = exOver();
+    o[id] = { ...o[id], n, g, eq: v.eq.trim(), tip: v.tip.trim(), ...(f.dataset.id ? {} : { custom: true }) };
+    if (ui.exPhoto) o[id].photo = ui.exPhoto; else delete o[id].photo;
+    let ok = true;
+    try { save(); } catch { ok = false; delete o[id].photo; save(); } // sin espacio: se guarda sin la foto
+    closeModal(); render(); toast(ok ? 'Guardado' : 'Sin espacio para la foto');
   } else if (kind === 'peso') {
     const kg = num(v.kg); if (!kg || !v.fecha) return;
     const ps = D().pesos.filter(x => x.fecha !== v.fecha);
