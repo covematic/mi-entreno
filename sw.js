@@ -1,6 +1,6 @@
 // Modo sin conexión: guarda la app y las fotos de ejercicios ya vistas.
 const CACHE = 'mi-entreno-v1';
-const APP = ['./', 'index.html', 'styles.css', 'js/app.js', 'js/data.js', 'manifest.webmanifest', 'icon.svg'];
+const APP = ['./', 'index.html', 'styles.css', 'js/app.js', 'js/data.js', 'js/catalog.js', 'manifest.webmanifest', 'icon.svg'];
 const IMG_HOST = 'raw.githubusercontent.com';
 
 self.addEventListener('install', e => {

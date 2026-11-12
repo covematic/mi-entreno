@@ -1,4 +1,8 @@
 import { EXERCISES, GROUPS, IMG_BASE, TEMPLATES, GOALS, NUTRITION } from './data.js';
+import { CATALOG } from './catalog.js';
+
+// Los 43 ejercicios con consejo propio van primero; después, el catálogo completo
+const ALL = [...EXERCISES, ...CATALOG];
 
 /* ───────── Estado y utilidades ───────── */
 const KEY = 'mi_entreno_v1';
@@ -33,11 +37,11 @@ const go = h => {
   render(); window.scrollTo(0, 0);
 };
 
-const BASE = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
+const BASE = Object.fromEntries(ALL.map(e => [e.id, e]));
 // Ejercicios personalizables: cada perfil guarda sus cambios en D().ex = { id: { n, g, eq, tip, photo, hidden, custom } }
 const exOver = () => (S.active && D() ? (D().ex ??= {}) : {});
 const getEx = id => { const o = exOver()[id]; return BASE[id] ? { ...BASE[id], ...o } : o?.custom ? { id, ...o } : null; };
-const exAll = () => { const o = exOver(); return [...EXERCISES.map(e => ({ ...e, ...o[e.id] })), ...Object.keys(o).filter(id => o[id].custom).map(id => ({ id, ...o[id] }))]; };
+const exAll = () => { const o = exOver(); return [...ALL.map(e => (o[e.id] ? { ...e, ...o[e.id] } : e)), ...Object.keys(o).filter(id => o[id].custom).map(id => ({ id, ...o[id] }))]; };
 const groupsAll = () => [...new Set([...GROUPS, ...exAll().filter(e => !e.hidden).map(e => e.g)])];
 const exName = id => getEx(id)?.n ?? 'Ejercicio eliminado';
 const stockUrl = (e, i = 0) => (e?.img ? `${IMG_BASE}/${e.img}/${i}.jpg` : '');
@@ -316,10 +320,13 @@ function vEntrenar() {
 }
 
 const chips = (list, cur, action) => `<div class="chips">${['Todos', ...list].map(g => `<button class="chip ${g === cur ? 'on' : ''}" data-a="${action}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div>`;
-const filterEx = (g, q) => exAll().filter(e => !e.hidden && (g === 'Todos' || e.g === g) && e.n.toLowerCase().includes(q.trim().toLowerCase()));
+const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const MAX_ROWS = 60; // con ~900 ejercicios no se pintan todos a la vez: se acota con el buscador
+const filterEx = (g, q) => { const words = norm(q).split(/\s+/).filter(Boolean); return exAll().filter(e => { if (e.hidden || (g !== 'Todos' && e.g !== g)) return false; const n = norm(e.n); return words.every(w => n.includes(w)); }); };
+const more = n => (n > MAX_ROWS ? `<p class="small muted" style="text-align:center;margin:12px 0">+${n - MAX_ROWS} más · usa el buscador</p>` : '');
 const exSub = e => esc(e.g) + (e.eq ? ' · ' + esc(e.eq) : '');
-const exTiles = (g, q) => filterEx(g, q).map(e => `<button class="pickrow" data-a="ex-info" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${exSub(e)}</span></span>${ic('next', 18)}</button>`).join('') || '<p class="muted" style="text-align:center;margin:14px 0">Sin resultados</p>';
-const pickList = (g, q) => filterEx(g, q).map(e => `<button class="pickrow" data-a="pick-ex" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${exSub(e)}</span></span>${ic('plus')}</button>`).join('') || '<p class="muted" style="text-align:center">Sin resultados</p>';
+const exTiles = (g, q, l = filterEx(g, q)) => l.slice(0, MAX_ROWS).map(e => `<button class="pickrow" data-a="ex-info" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${exSub(e)}</span></span>${ic('next', 18)}</button>`).join('') + more(l.length) || '<p class="muted" style="text-align:center;margin:14px 0">Sin resultados</p>';
+const pickList = (g, q, l = filterEx(g, q)) => l.slice(0, MAX_ROWS).map(e => `<button class="pickrow" data-a="pick-ex" data-id="${e.id}">${thumb(e.id)}<span class="grow"><b>${esc(e.n)}</b><br><span class="small muted">${exSub(e)}</span></span>${ic('plus')}</button>`).join('') + more(l.length) || '<p class="muted" style="text-align:center">Sin resultados</p>';
 const searchBox = (key, val = '') => `<div class="search">${ic('search')}<input type="search" enterkeyhint="search" autocapitalize="none" autocorrect="off" data-i="${key}" value="${esc(val)}" placeholder="Buscar" aria-label="Buscar ejercicio"></div>`;
 
 function vEjercicios() {
